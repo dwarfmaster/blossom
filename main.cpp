@@ -27,6 +27,7 @@ struct uf_item {
     size_t lchild;
 };
 
+// a(n) is the inverse Ackermann function
 template <typename T>
 class uf_data {
     uf_item<T>* m_data;
@@ -71,7 +72,7 @@ class uf_data {
             }
         }
 
-        // O(1) mean time
+        // O(a(m_size))
         size_t parent(size_t i) {
             assert(m_size > 0);
             if(m_data[i].parent == i) return i;
@@ -86,7 +87,7 @@ class uf_data {
             m_data[pr].lchild = m_data[ch].lchild;
         }
 
-        // O(1) mean time
+        // O(a(m_size))
         void join(size_t i, size_t j) {
             size_t pi = parent(i);
             size_t pj = parent(j);
@@ -117,133 +118,6 @@ class uf_data {
         }
 };
 
-//   ___              _   _            _    ____                 _     
-//  / _ \ _   _  ___ | |_(_) ___ _ __ | |_ / ___|_ __ __ _ _ __ | |___
-// | | | | | | |/ _ \| __| |/ _ \ '_ \| __| |  _| '__/ _` | '_ \| '_  |
-// | |_| | |_| | (_) | |_| |  __/ | | | |_| |_| | | | (_| | |_) | | | |
-//  \__\_\\__,_|\___/ \__|_|\___|_| |_|\__|\____|_|  \__,_| .__/|_| |_|
-//                                                        |_|          
-// 
-
-struct Edge {
-    size_t src;
-    size_t dest;
-    bool   matched;
-};
-
-using Graph = vector<list<Edge>>;
-
-// Iterates on the edges of a compressed node
-// A complete iteration on compressed node n is O(\sum_{i\in n} d(i))
-class QuotientGraphNodeIterator {
-    Graph* m_graph;
-    uf_data<size_t>* m_partition;
-    size_t m_node;
-    list<Edge>::iterator m_it;
-    bool m_ended;
-
-    public:
-        QuotientGraphNodeIterator()
-        : m_graph(nullptr), m_node(0), m_it(), m_ended(true)
-        {}
-
-        QuotientGraphNodeIterator(Graph* gr, uf_data<size_t>* partition, size_t node)
-        : m_graph(gr), m_partition(partition), m_node(node),
-          m_it((*m_graph)[node].begin()),
-          m_ended(false)
-        { next(); }
-
-        QuotientGraphNodeIterator(const QuotientGraphNodeIterator& it)
-        : m_graph(it.m_graph), m_partition(it.m_partition), m_node(it.m_node),
-          m_it(it.m_it), m_ended(it.m_ended)
-        { }
-
-        ~QuotientGraphNodeIterator() = default;
-
-        QuotientGraphNodeIterator& operator=(const QuotientGraphNodeIterator& it) {
-            m_graph     = it.m_graph;
-            m_partition = it.m_partition;
-            m_node      = it.m_node;
-            m_it        = it.m_it;
-            m_ended     = it.m_ended;
-            return *this;
-        }
-
-        void next() {
-            while(m_it == (*m_graph)[m_node].end()) {
-                m_node = m_partition->next(m_node);
-                if(m_node == (size_t)-1) {
-                    m_ended = true;
-                    return;
-                }
-                m_it = (*m_graph)[m_node].begin();
-            }
-
-            if(m_partition->parent(m_it->dest) != m_partition->parent(m_node))
-                return;
-
-            ++m_it;
-            next();
-        }
-
-        // Comparison operations
-        bool operator==(const QuotientGraphNodeIterator& it) {
-            return (m_ended && it.m_ended)
-                || (!m_ended && !it.m_ended
-                        && (m_node == it.m_node) && (m_it == it.m_it));
-        }
-
-        bool operator!=(const QuotientGraphNodeIterator& it) {
-            return !(*this == it);
-        }
-
-        // Access operations
-        Edge& operator*() {
-            return *m_it;
-        }
-
-        Edge& operator->() {
-            return *m_it;
-        }
-
-        // Iteration
-        QuotientGraphNodeIterator& operator++() {
-            ++m_it;
-            next();
-            return *this;
-        }
-};
-
-class QuotientGraph {
-    Graph* m_graph;
-    // The value stored here is useless
-    uf_data<size_t> m_partition;
-
-    public:
-        QuotientGraph() = delete;
-
-        // O(|gr|)
-        QuotientGraph(Graph* gr)
-        : m_graph(gr), m_partition(gr->size())
-        { }
-
-        ~QuotientGraph() = default;
-
-        QuotientGraph& operator=(const QuotientGraph&) = delete;
-
-        using iterator = QuotientGraphNodeIterator;
-
-        iterator end() {
-            iterator end;
-            return end;
-        }
-
-        iterator operator[](size_t i) {
-            iterator it(m_graph, &m_partition, m_partition.parent(i));
-            return it;
-        }
-};
-
 //  ____  _                               
 // | __ )| | ___  ___ ___  ___  _ __ ____
 // |  _ \| |/ _ \/ __/ __|/ _ \| '_ ` _  | 
@@ -251,44 +125,347 @@ class QuotientGraph {
 // |____/|_|\___/|___/___/\___/|_| |_| |_|
 //                                        
 
-using EdgePtr = list<Edge>::iterator;
-using Path = list<EdgePtr>;
+struct Edge {
+    size_t u, v;
+    bool matched;
 
-// Assumes path is an augmenting path
-// O(|path|) worst time
-void augment(Path& path) {
-    for(auto edg = path.begin(); edg != path.end(); ++edg) {
-        (*edg)->matched = !(*edg)->matched;
+    size_t other(size_t n) {
+        return (n == u) ? v : u;
     }
-}
 
-Path find_augmenting_path(Graph& graph, const unordered_set<size_t>& unmatched) {
-    QuotientGraph quotient(&graph);
-    // TODO
-}
+    bool has(size_t n) {
+        return (n == u) || (n == v);
+    }
+};
 
-// The matching is stored in graph as annotations on edges
-// The maximum matching is returned by modifying graph by side-effect
-void find_maximum_matching(Graph& graph) {
-    // Initialisation of unmatched is O(n)
+struct Node {
+    bool erased;
+    vector<size_t> edges;
+    size_t matcher;
+    bool matched;
+
+    Node()
+    : erased(false), edges(), matched(false)
+    {}
+};
+
+struct Graph {
+    vector<Edge> edges;
+    vector<Node> nodes;
     unordered_set<size_t> unmatched;
-    for(size_t i = 0; i < graph.size(); ++i) {
-        unmatched.insert(i);
+
+    Graph() = delete;
+
+    Graph(size_t n)
+    : edges(), nodes(n)
+    {}
+};
+
+void print_matching(const Graph& g) {
+    for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
+        if(e->matched) cout << e->u << " -- " << e->v << endl;
+    }
+}
+
+struct Cycle {
+    list<size_t> edges;
+    size_t in_edge;
+};
+struct TreeNode {
+    size_t prec; // Edge
+    size_t dist_to_root;
+    bool in;
+    bool A, B;
+};
+
+// The function is recursively called O(n) times, because gr.unmatched decrease
+// in cardinality every time it is called
+// Initialisation is in O(n) = O(m), computation in O(n) = O(m) are done before
+// every recursive call
+// Otherwise, the main loop is O(m) since every edge is added at most twice to
+// L during an execution. The main loop body is O(a(n)) amortised where a(n)
+// is the inversed Ackermann function.
+// Thus the function is O(nm * a(n))
+void blossom(Graph& gr) {
+    if(gr.unmatched.empty()) return;
+    bool recurse_after = false;
+
+    // Initialisation is O(n) = O(m)
+    size_t n = gr.nodes.size();
+    list<Cycle> contractions;
+    vector<TreeNode> T(n);
+    list<size_t> L;
+    // The data is the matched node of the compressed one if it is matched
+    uf_data<size_t> compress(n);
+
+    for(size_t i = 0; i < n; ++i) {
+        T[i].A  = false;
+        T[i].B  = false;
+        T[i].in = false;
     }
 
-    Path augmenting;
-    augmenting = find_augmenting_path(graph, unmatched);
-    while(!augmenting.empty()) {
-        // augment is O(|augmenting|) = O(min(n,m))
-        augment(augmenting);
-
-        // Updating unmatched is O(1) mean time
-        unmatched.erase(augmenting.front()->src);
-        unmatched.erase(augmenting.back()->dest);
-
-        // TODO complexity of looking for augmenting path
-        augmenting = find_augmenting_path(graph, unmatched);
+    size_t root = *gr.unmatched.begin();
+    T[root].A = false;
+    T[root].B = true;
+    T[root].in = true;
+    T[root].dist_to_root = 0;
+    T[root].prec = -1;
+    for(auto it = gr.nodes[root].edges.begin();
+            it != gr.nodes[root].edges.end(); ++it) {
+        L.push_back(*it);
     }
+
+    // We loop at most O(m) times
+    while(!L.empty()) {
+        size_t edge = L.front(); L.pop_front(); // O(1)
+        size_t uorig = gr.edges[edge].u;
+        size_t vorig = gr.edges[edge].v;
+        size_t u = compress.parent(uorig); // O(a(n))
+        size_t v = compress.parent(vorig); // O(a(n))
+
+        // Nodes in the same compressed cycle
+        if(u == v)                                        continue; // O(1)
+        // Impossible because when an edge is added to T, it has one node in B
+        else if(!T[u].B && !T[v].B)                       continue; // O(1)
+        // One of the nodes has been deleted
+        else if(gr.nodes[u].erased || gr.nodes[v].erased) continue; // O(1)
+
+
+        // We found an augmenting path
+        // Test O(1)
+        else if((T[u].B && !T[v].in && !gr.nodes[v].matched)
+                || (T[v].B && !T[u].in && !gr.nodes[u].matched)) {
+            // Swap O(1)
+            if(T[u].B) {
+                size_t tmp = u;
+                u = v;
+                v = tmp;
+                tmp = uorig;
+                uorig = vorig;
+                vorig = tmp;
+            }
+
+            // Init O(1)
+            list<size_t> edges;
+            edges.push_back(edge);
+            size_t node = v;
+
+            cout << "Found augmenting path : " << u << " -> " << v;
+
+            // Discover path O(n)
+            while(gr.nodes[node].matched) {
+                size_t e = T[node].prec;
+                cout << "(" << e << ")";
+                edges.push_back(e);
+                node = gr.edges[e].other(node);
+                cout << " -> " << node << flush;
+                node = compress.parent(node);
+                cout << "[" << node << "]";
+            }
+            cout << endl;
+
+            // Augment along path on compressed graph O(n)
+            gr.nodes[u].matched = true;
+            gr.nodes[u].matcher = edge;
+            for(auto edg = edges.begin(); edg != edges.end(); ++edg) {
+                gr.edges[*edg].matched = !gr.edges[*edg].matched;
+                if(gr.edges[*edg].matched) {
+                    size_t node = gr.edges[*edg].u;
+                    gr.nodes[compress.parent(node)].matched = true;
+                    gr.nodes[compress.parent(node)].matcher = *edg;
+                    node = gr.edges[*edg].v;
+                    gr.nodes[compress.parent(node)].matched = true;
+                    gr.nodes[compress.parent(node)].matcher = *edg;
+                }
+            }
+            gr.unmatched.erase(root);
+            gr.unmatched.erase(u);
+
+            // Expand cycles first and recurse afterward
+            recurse_after = true;
+            break;
+        }
+
+
+        // We can increase one of our alternating path
+        // Test O(1)
+        else if((T[u].B && !T[v].in && gr.nodes[v].matched)
+                || (T[v].B && !T[u].in && gr.nodes[u].matched)) {
+            // Swap O(1)
+            if(T[v].B) {
+                size_t tmp = u;
+                u = v;
+                v = tmp;
+            }
+
+            T[v].in = true;
+            T[v].A  = true;
+            T[v].B  = false;
+            T[v].prec = edge;
+            T[v].dist_to_root = T[u].dist_to_root + 1;
+
+            Edge& nedge = gr.edges[gr.nodes[v].matcher];
+            size_t w = nedge.other(v);
+            T[w].in = true;
+            T[w].A  = false;
+            T[w].B  = true;
+            T[w].prec = gr.nodes[v].matcher;
+            T[w].dist_to_root = T[v].dist_to_root + 1;
+
+            // O(d_u), executed at most one for every u, so O(n+m) = O(m) for
+            // the whole execution loop
+            for(auto it = gr.nodes[w].edges.begin();
+                    it != gr.nodes[w].edges.end(); ++it) {
+                L.push_back(*it);
+            }
+        }
+
+
+        // Found an odd cycle, let's compress it
+        // Test O(1)
+        else if(T[u].B && T[v].B) {
+            // Init O(1)
+            size_t u2 = u, v2 = v;
+            Cycle c;
+            c.edges.push_back(edge);
+            list<size_t> nodes;
+            nodes.push_back(u); nodes.push_back(v);
+
+            // Discover cycle
+            // Complete complexity O(size of cycle), so the total complexity
+            // over all iterations is O(sum of size of all cycles), which is 
+            // O(n) = O(m)
+            while(T[u2].dist_to_root > T[v2].dist_to_root) {
+                c.edges.push_back(T[u2].prec);
+                u2 = gr.edges[T[u2].prec].other(u2);
+                nodes.push_front(u2);
+            }
+            while(T[v2].dist_to_root > T[u2].dist_to_root) {
+                c.edges.push_front(T[v2].prec);
+                v2 = gr.edges[T[v2].prec].other(v2);
+                nodes.push_back(v2);
+            }
+            while(u2 != v2) {
+                c.edges.push_back(T[u2].prec);
+                c.edges.push_front(T[v2].prec);
+                u2 = gr.edges[T[u2].prec].other(u2);
+                v2 = gr.edges[T[v2].prec].other(v2);
+                nodes.push_front(u2);
+                nodes.push_back(v2);
+            }
+            nodes.pop_front();
+            c.in_edge = T[u2].prec; // == T[v2].prec
+            contractions.push_back(c);
+
+            // Add outgoing edges to L
+            // Complexity over all execution O(m * a(n))
+            cout << "Found odd cycle ";
+            for(auto nd = nodes.begin(); nd != nodes.end(); ++nd) {
+                cout << *nd << " -- ";
+                compress.join(u, *nd);
+                for(auto ed = gr.nodes[*nd].edges.begin();
+                        ed != gr.nodes[*nd].edges.end(); ++ed) {
+                    L.push_back(*ed);
+                }
+            }
+            cout << endl;
+
+            // Unmatch all edges and nodes of the cycle, except the parent
+            // O(size of cycle), same remark as above
+            for(auto edg = c.edges.begin(); edg != c.edges.end(); ++edg) {
+                gr.edges[*edg].matched = false;
+                gr.nodes[gr.edges[*edg].u].matched = false;
+                gr.nodes[gr.edges[*edg].v].matched = false;
+            }
+
+            // Compress it
+            // O(a(n))
+            size_t prt = compress.parent(u);
+            gr.nodes[prt].matched = (u2 != root);
+            gr.nodes[prt].matcher = c.in_edge;
+            T[prt].prec = T[u2].prec;
+            T[prt].dist_to_root = T[u2].dist_to_root;
+            T[prt].A = false;
+            T[prt].B = true;
+        }
+
+        // The last case is when the edge is between B(T) and A(T) : we ignore
+        // it in this case because it doesn't add anything to the search of an
+        // augmenting path
+    }
+
+    if(!recurse_after) {
+        // Remove nodes in V(T) from G
+        // O(n)
+        for(size_t nd = 0; nd < n; ++nd) {
+            gr.nodes[nd].erased = gr.nodes[nd].erased || T[nd].in;
+        }
+        gr.unmatched.erase(root);
+        blossom(gr);
+    }
+
+
+    // Expand compressed odd cycles O(\sum |c|) = O(n)
+    for(auto c = contractions.begin(); c != contractions.end(); ++c) {
+        // Find matched node in cycle O(|c|)
+        size_t mnode = -1;
+        for(auto edg = c->edges.begin(); edg != c->edges.end(); ++edg) {
+            size_t u = gr.edges[*edg].u;
+            size_t v = gr.edges[*edg].v;
+
+            if(gr.nodes[u].matched) {
+                bool in = (c->in_edge != (size_t)-1) && gr.edges[c->in_edge].has(u);
+                if(in && mnode == (size_t)-1) mnode = u;
+                else if(in)                   mnode = u;
+            }
+            if(gr.nodes[v].matched) {
+                bool in = (c->in_edge != (size_t)-1) && gr.edges[c->in_edge].has(v);
+                if(in && mnode == (size_t)-1) mnode = v;
+                else if(in)                   mnode = v;
+            }
+        }
+        if(mnode == (size_t)-1) mnode = gr.edges[*c->edges.begin()].u;
+
+        // Set the matching on the cycle O(|c|)
+        long long dist = -1;
+        for(auto edg = c->edges.begin(); edg != c->edges.end(); ++edg) {
+            if(gr.edges[*edg].has(mnode)) {
+                dist = 0;
+                gr.edges[*edg].matched = false;
+            } else if(dist >= 0) {
+                ++dist;
+                if(dist % 2 == 1) {
+                    gr.edges[*edg].matched = true;
+                    gr.nodes[gr.edges[*edg].u].matched = true;
+                    gr.nodes[gr.edges[*edg].u].matcher = *edg;
+                    gr.nodes[gr.edges[*edg].v].matched = true;
+                    gr.nodes[gr.edges[*edg].v].matcher = *edg;
+                } else {
+                    gr.edges[*edg].matched = false;
+                }
+            }
+        }
+        dist = -1;
+        for(auto edg = c->edges.rbegin(); edg != c->edges.rend(); ++edg) {
+            if(gr.edges[*edg].has(mnode)) {
+                dist = 0;
+                gr.edges[*edg].matched = false;
+            } else if(dist >= 0) {
+                ++dist;
+                if(dist % 2 == 1) {
+                    gr.edges[*edg].matched = true;
+                    gr.nodes[gr.edges[*edg].u].matched = true;
+                    gr.nodes[gr.edges[*edg].u].matcher = *edg;
+                    gr.nodes[gr.edges[*edg].v].matched = true;
+                    gr.nodes[gr.edges[*edg].v].matcher = *edg;
+                } else {
+                    gr.edges[*edg].matched = false;
+                }
+            }
+        }
+    }
+
+    if(recurse_after) blossom(gr);
 }
 
 //  __  __       _       
@@ -301,7 +478,33 @@ void find_maximum_matching(Graph& graph) {
 int main(int argc, char *argv[]) {
     if(argc && argv) {}
 
-    cout << "Hello world" << endl;
+    size_t n;
+    cin >> n;
+    Graph g(n);
+    for(size_t i = 0; i < n; ++i) g.unmatched.insert(i);
+
+    size_t e;
+    cin >> e;
+    for(size_t i = 0; i < e; ++i) {
+        Edge edg;
+        cin >> edg.u >> edg.v;
+        edg.matched = false;
+
+        size_t nedg = g.edges.size();
+        g.edges.push_back(edg);
+        g.nodes[edg.u].edges.push_back(nedg);
+        g.nodes[edg.v].edges.push_back(nedg);
+    }
+
+    blossom(g);
+    for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
+        if(e->matched) {
+            cout << e->u << " -- " << e->v << " M" << endl;
+        } else {
+            cout << e->u << " -- " << e->v << endl;
+        }
+    }
+
     return 0;
 }
 
