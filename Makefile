@@ -1,6 +1,6 @@
 OBJS=main.o
 PROG=blossom
-CXXFLAGS=-Wall -Wextra -pedantic -std=c++17
+CXXFLAGS=-Wall -Wextra -pedantic -std=c++17 -O2
 LDFLAGS=
 CC=g++
 
