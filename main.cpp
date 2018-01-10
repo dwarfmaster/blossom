@@ -21,11 +21,6 @@ struct uf_item {
     T value;
     size_t rk;
     size_t parent;
-    // The next item in the current subset
-    size_t fchild;
-    // The last item in the current subset, valid only for the parent
-    // Used to keep join constant time
-    size_t lchild;
 };
 
 // a(n) is the inverse Ackermann function
@@ -46,8 +41,6 @@ class uf_data {
             for(size_t i = 0; i < m_size; ++i) {
                 m_data[i].rk   = 0;
                 m_data[i].parent = i;
-                m_data[i].fchild = -1;
-                m_data[i].lchild = -1;
             }
         }
 
@@ -82,12 +75,6 @@ class uf_data {
             return m_data[i].parent;
         }
 
-        // O(1)
-        void attach(size_t pr, size_t ch) {
-            m_data[m_data[pr].lchild].fchild = m_data[ch].fchild;
-            m_data[pr].lchild = m_data[ch].lchild;
-        }
-
         // O(a(m_size))
         void join(size_t i, size_t j) {
             size_t pi = parent(i);
@@ -96,13 +83,10 @@ class uf_data {
 
             if(m_data[pi].rk < m_data[pj].rk) {
                 m_data[pi].parent = pj;
-                attach(pj, pi);
             } else if(m_data[pi].rk > m_data[pj].rk) {
                 m_data[pj].parent = pi;
-                attach(pi, pj);
             } else {
                 m_data[pi].parent = pj;
-                attach(pj, pi);
                 ++m_data[pj].rk;
             }
         }
@@ -110,12 +94,6 @@ class uf_data {
         // O(1)
         T& get(size_t i) {
             return m_data[i].value;
-        }
-
-        // Returns -1 if i was the last element from the set
-        // O(1)
-        size_t next(size_t i) {
-            return m_data[i].fchild;
         }
 };
 
@@ -162,15 +140,8 @@ struct Graph {
     {}
 };
 
-void print_matching(const Graph& g) {
-    for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
-        if(e->matched) cout << e->u << " -- " << e->v << endl;
-    }
-}
-
 struct Cycle {
     list<size_t> edges;
-    size_t in_edge;
 };
 struct TreeNode {
     size_t prec; // Edge
@@ -251,24 +222,18 @@ void blossom(Graph& gr) {
             edges.push_back(edge);
             size_t node = v;
 
-            cout << "Found augmenting path : " << u << " -> " << v;
-
             // Discover path O(n)
             while(gr.nodes[node].matched) {
                 size_t e = T[node].prec;
-                cout << "(" << e << ")";
-                edges.push_back(e);
                 node = gr.edges[e].other(node);
-                cout << " -> " << node << flush;
-                node = compress.parent(node);
-                cout << "[" << node << "]";
             }
-            cout << endl;
 
             // Augment along path on compressed graph O(n)
             gr.nodes[u].matched = true;
             gr.nodes[u].matcher = edge;
             for(auto edg = edges.begin(); edg != edges.end(); ++edg) {
+                if(compress.parent(gr.edges[*edg].u) == compress.parent(gr.edges[*edg].v)) continue;
+
                 gr.edges[*edg].matched = !gr.edges[*edg].matched;
                 if(gr.edges[*edg].matched) {
                     size_t node = gr.edges[*edg].u;
@@ -355,21 +320,18 @@ void blossom(Graph& gr) {
                 nodes.push_back(v2);
             }
             nodes.pop_front();
-            c.in_edge = T[u2].prec; // == T[v2].prec
+            size_t in_edge = T[u2].prec; // == T[v2].prec
             contractions.push_back(c);
 
             // Add outgoing edges to L
             // Complexity over all execution O(m * a(n))
-            cout << "Found odd cycle ";
             for(auto nd = nodes.begin(); nd != nodes.end(); ++nd) {
-                cout << *nd << " -- ";
                 compress.join(u, *nd);
                 for(auto ed = gr.nodes[*nd].edges.begin();
                         ed != gr.nodes[*nd].edges.end(); ++ed) {
                     L.push_back(*ed);
                 }
             }
-            cout << endl;
 
             // Unmatch all edges and nodes of the cycle, except the parent
             // O(size of cycle), same remark as above
@@ -383,7 +345,7 @@ void blossom(Graph& gr) {
             // O(a(n))
             size_t prt = compress.parent(u);
             gr.nodes[prt].matched = (u2 != root);
-            gr.nodes[prt].matcher = c.in_edge;
+            gr.nodes[prt].matcher = in_edge;
             T[prt].prec = T[u2].prec;
             T[prt].dist_to_root = T[u2].dist_to_root;
             T[prt].A = false;
@@ -452,6 +414,7 @@ void blossom(Graph& gr) {
         }
         dist = -1;
         for(auto edg = c->edges.rbegin(); edg != c->edges.rend(); ++edg) {
+            cout << *edg << endl;
             if(any_of(mnodes.begin(), mnodes.end(), 
                         [&] (size_t v) { return gr.edges[*edg].has(v); })) {
                 dist = 0;
@@ -503,13 +466,13 @@ int main(int argc, char *argv[]) {
     }
 
     blossom(g);
-    for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
-        if(e->matched) {
-            cout << e->u << " -- " << e->v << " M" << endl;
-        } else {
-            cout << e->u << " -- " << e->v << endl;
-        }
-    }
+    // for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
+    //     if(e->matched) {
+    //         cout << e->u << " -- " << e->v << " M" << endl;
+    //     } else {
+    //         cout << e->u << " -- " << e->v << endl;
+    //     }
+    // }
 
     return 0;
 }
