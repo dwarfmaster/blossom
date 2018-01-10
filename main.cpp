@@ -223,9 +223,10 @@ void blossom(Graph& gr) {
             size_t node = v;
 
             // Discover path O(n)
-            while(gr.nodes[node].matched) {
+            while(gr.nodes[compress.parent(node)].matched) {
                 size_t e = T[node].prec;
                 node = gr.edges[e].other(node);
+                edges.push_back(e);
             }
 
             // Augment along path on compressed graph O(n)
@@ -303,19 +304,19 @@ void blossom(Graph& gr) {
             // O(n) = O(m)
             while(T[u2].dist_to_root > T[v2].dist_to_root) {
                 c.edges.push_back(T[u2].prec);
-                u2 = gr.edges[T[u2].prec].other(u2);
+                u2 = compress.parent(gr.edges[T[u2].prec].other(u2));
                 nodes.push_front(u2);
             }
             while(T[v2].dist_to_root > T[u2].dist_to_root) {
                 c.edges.push_front(T[v2].prec);
-                v2 = gr.edges[T[v2].prec].other(v2);
+                v2 = compress.parent(gr.edges[T[v2].prec].other(v2));
                 nodes.push_back(v2);
             }
             while(u2 != v2) {
                 c.edges.push_back(T[u2].prec);
                 c.edges.push_front(T[v2].prec);
-                u2 = gr.edges[T[u2].prec].other(u2);
-                v2 = gr.edges[T[v2].prec].other(v2);
+                u2 = compress.parent(gr.edges[T[u2].prec].other(u2));
+                v2 = compress.parent(gr.edges[T[v2].prec].other(v2));
                 nodes.push_front(u2);
                 nodes.push_back(v2);
             }
@@ -344,7 +345,7 @@ void blossom(Graph& gr) {
             // Compress it
             // O(a(n))
             size_t prt = compress.parent(u);
-            gr.nodes[prt].matched = (u2 != root);
+            gr.nodes[prt].matched = (compress.parent(u2) != compress.parent(root));
             gr.nodes[prt].matcher = in_edge;
             T[prt].prec = T[u2].prec;
             T[prt].dist_to_root = T[u2].dist_to_root;
@@ -380,7 +381,7 @@ void blossom(Graph& gr) {
     }
 
     // Expand compressed odd cycles O(\sum |c|) = O(n)
-    for(auto c = contractions.rbegin(); c != contractions.rend(); ++c) {
+    for(auto c = contractions.begin(); c != contractions.end(); ++c) {
         // Find matched node in cycle O(|c|)
         vector<size_t> mnodes; // mnodes.size() <= 2 over all execution
         for(auto edg = c->edges.begin(); edg != c->edges.end(); ++edg) {
@@ -414,7 +415,6 @@ void blossom(Graph& gr) {
         }
         dist = -1;
         for(auto edg = c->edges.rbegin(); edg != c->edges.rend(); ++edg) {
-            cout << *edg << endl;
             if(any_of(mnodes.begin(), mnodes.end(), 
                         [&] (size_t v) { return gr.edges[*edg].has(v); })) {
                 dist = 0;
@@ -466,13 +466,13 @@ int main(int argc, char *argv[]) {
     }
 
     blossom(g);
-    // for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
-    //     if(e->matched) {
-    //         cout << e->u << " -- " << e->v << " M" << endl;
-    //     } else {
-    //         cout << e->u << " -- " << e->v << endl;
-    //     }
-    // }
+    for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
+        if(e->matched) {
+            cout << e->u << " -- " << e->v << " M" << endl;
+        } else {
+            cout << e->u << " -- " << e->v << endl;
+        }
+    }
 
     return 0;
 }
