@@ -5,15 +5,16 @@
 #include <cstring>
 #include <cassert>
 #include <unordered_set>
+#include <algorithm>
 
 using namespace std;
 
-// _   _       _                   _____ _           _ 
-//| | | |_ __ (_) ___  _ __       |  ___(_)_ __   __| |
-//| | | | '_ \| |/ _ \| '_ \ _____| |_  | | '_ \ / _` |
-//| |_| | | | | | (_) | | | |_____|  _| | | | | | (_| |
-// \___/|_| |_|_|\___/|_| |_|     |_|   |_|_| |_|\__,_|
-//                                                     
+//  _   _       _                   _____ _           _ 
+// | | | |_ __ (_) ___  _ __       |  ___(_)_ __   __| |
+// | | | | '_ \| |/ _ \| '_ \ _____| |_  | | '_ \ / _` |
+// | |_| | | | | | (_) | | | |_____|  _| | | | | | (_| |
+//  \___/|_| |_|_|\___/|_| |_|     |_|   |_|_| |_|\__,_|
+//                                                      
 
 template <typename T>
 struct uf_item {
@@ -196,7 +197,7 @@ void blossom(Graph& gr) {
     vector<TreeNode> T(n);
     list<size_t> L;
     // The data is the matched node of the compressed one if it is matched
-    uf_data<size_t> compress(n);
+    uf_data<char> compress(n);
 
     for(size_t i = 0; i < n; ++i) {
         T[i].A  = false;
@@ -405,31 +406,35 @@ void blossom(Graph& gr) {
     }
 
 
+    // Reset node matching anotations O(m)
+    for(size_t nd = 0; nd < n; ++nd) gr.nodes[nd].matched = false;
+    for(size_t edg = 0; edg < gr.edges.size(); ++edg) {
+        if(gr.edges[edg].matched) {
+            gr.nodes[gr.edges[edg].u].matched = true;
+            gr.nodes[gr.edges[edg].u].matcher = edg;
+            gr.nodes[gr.edges[edg].v].matched = true;
+            gr.nodes[gr.edges[edg].v].matcher = edg;
+        }
+    }
+
     // Expand compressed odd cycles O(\sum |c|) = O(n)
-    for(auto c = contractions.begin(); c != contractions.end(); ++c) {
+    for(auto c = contractions.rbegin(); c != contractions.rend(); ++c) {
         // Find matched node in cycle O(|c|)
-        size_t mnode = -1;
+        vector<size_t> mnodes; // mnodes.size() <= 2 over all execution
         for(auto edg = c->edges.begin(); edg != c->edges.end(); ++edg) {
             size_t u = gr.edges[*edg].u;
             size_t v = gr.edges[*edg].v;
 
-            if(gr.nodes[u].matched) {
-                bool in = (c->in_edge != (size_t)-1) && gr.edges[c->in_edge].has(u);
-                if(in && mnode == (size_t)-1) mnode = u;
-                else if(in)                   mnode = u;
-            }
-            if(gr.nodes[v].matched) {
-                bool in = (c->in_edge != (size_t)-1) && gr.edges[c->in_edge].has(v);
-                if(in && mnode == (size_t)-1) mnode = v;
-                else if(in)                   mnode = v;
-            }
+            if(gr.nodes[u].matched) mnodes.push_back(u);
+            if(gr.nodes[v].matched) mnodes.push_back(v);
         }
-        if(mnode == (size_t)-1) mnode = gr.edges[*c->edges.begin()].u;
+        if(mnodes.empty()) mnodes.push_back(gr.edges[*c->edges.begin()].u);
 
         // Set the matching on the cycle O(|c|)
         long long dist = -1;
         for(auto edg = c->edges.begin(); edg != c->edges.end(); ++edg) {
-            if(gr.edges[*edg].has(mnode)) {
+            if(any_of(mnodes.begin(), mnodes.end(), 
+                        [&] (size_t v) { return gr.edges[*edg].has(v); })) {
                 dist = 0;
                 gr.edges[*edg].matched = false;
             } else if(dist >= 0) {
@@ -447,7 +452,8 @@ void blossom(Graph& gr) {
         }
         dist = -1;
         for(auto edg = c->edges.rbegin(); edg != c->edges.rend(); ++edg) {
-            if(gr.edges[*edg].has(mnode)) {
+            if(any_of(mnodes.begin(), mnodes.end(), 
+                        [&] (size_t v) { return gr.edges[*edg].has(v); })) {
                 dist = 0;
                 gr.edges[*edg].matched = false;
             } else if(dist >= 0) {
