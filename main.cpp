@@ -468,8 +468,6 @@ int main(int argc, char *argv[]) {
     blossom(g);
     for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
         if(e->matched) {
-            cout << e->u << " -- " << e->v << " M" << endl;
-        } else {
             cout << e->u << " -- " << e->v << endl;
         }
     }
