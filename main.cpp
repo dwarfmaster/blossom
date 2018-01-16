@@ -6,6 +6,7 @@
 #include <cassert>
 #include <unordered_set>
 #include <algorithm>
+#include <chrono>
 
 using namespace std;
 
@@ -465,12 +466,17 @@ int main(int argc, char *argv[]) {
         g.nodes[edg.v].edges.push_back(nedg);
     }
 
+    chrono::high_resolution_clock::time_point t1 = chrono::high_resolution_clock::now();
     blossom(g);
+    chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
     for(auto e = g.edges.begin(); e != g.edges.end(); ++e) {
         if(e->matched) {
             cout << e->u << " -- " << e->v << endl;
         }
     }
+
+    auto duration = chrono::duration_cast<chrono::microseconds>(t2-t1).count();
+    cout << "Duration " << duration << " us" << endl;
 
     return 0;
 }

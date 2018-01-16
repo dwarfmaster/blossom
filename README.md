@@ -34,3 +34,7 @@ be :
 0 -- 1
 2 -- 3
 ```
+
+It also outputs the duration of the execution of the blossom function in
+microseconds, without the time to load the graph or print the output.
+
